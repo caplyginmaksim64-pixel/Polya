@@ -4,67 +4,47 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Поля 💕</title>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,700&family=Cormorant+Garamond:ital,wght@1,600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,700&display=swap" rel="stylesheet"/>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
 
-    html, body {
-      width: 100%; height: 100%;
-      background: #08000f;
-      overflow: hidden;
-      font-family: 'Playfair Display', serif;
-    }
-    
-    canvas {
-      position: fixed;
-      inset: 0;
-      width: 100%; height: 100%;
-    }
+    canvas { position: fixed; inset: 0; width: 100%; height: 100%; }
 
-    /* ── центральный текст ── */
     .center {
-      position: fixed;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      pointer-events: none;
-      z-index: 10;
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      pointer-events: none; z-index: 10;
     }
-
     .name {
-      font-family: 'Playfair Display', 'Cormorant Garamond', serif;
-      font-style: italic;
-      font-weight: 700;
-      font-size: clamp(72px, 18vw, 160px);
-      letter-spacing: 0.12em;
+      font-family: 'Playfair Display', serif;
+      font-style: italic; font-weight: 700;
+      font-size: clamp(64px, 16vw, 148px);
+      letter-spacing: 0.14em;
       color: #fff;
       opacity: 0;
-      transform: translateY(18px) scale(0.94);
-      transition: opacity 1.4s ease, transform 1.4s ease;
+      transform: scale(0.88);
+      transition: opacity 1.6s ease, transform 1.6s ease;
       text-shadow:
-        0 0 18px rgba(255, 80, 130, 0.9),
-        0 0 50px rgba(255, 60, 110, 0.7),
-        0 0 100px rgba(220, 20, 80, 0.4);
+        0 0 20px rgba(255,0,0,0.9),
+        0 0 50px rgba(255,0,0,0.6),
+        0 0 110px rgba(200,0,0,0.35);
     }
-    .name.visible {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
+    .name.show { opacity: 1; transform: scale(1); }
 
     .tagline {
-      margin-top: 10px;
-      font-family: 'Cormorant Garamond', serif;
+      margin-top: 8px;
+      font-family: 'Playfair Display', serif;
       font-style: italic;
-      font-size: clamp(14px, 3.5vw, 26px);
-      letter-spacing: 0.35em;
-      color: rgba(255, 180, 210, 0.85);
+      font-size: clamp(13px, 3vw, 22px);
+      letter-spacing: 0.3em;
+      color: rgba(255, 120, 120, 0.85);
       opacity: 0;
-      transition: opacity 1.6s ease 0.6s;
-      text-shadow: 0 0 20px rgba(255, 80, 140, 0.6);
+      transition: opacity 1.8s ease 0.5s;
+      text-shadow: 0 0 18px rgba(255,0,0,0.5);
     }
-    .tagline.visible { opacity: 1; }
+    .tagline.show { opacity: 1; }
   </style>
 </head>
 <body>
@@ -72,227 +52,176 @@
 <canvas id="c"></canvas>
 
 <div class="center">
-  <div class="name" id="name">Поля</div>
-  <div class="tagline" id="tagline">с любовью ♡</div>
+  <div class="name"  id="name">Поля</div>
+  <div class="tagline" id="tag">with love ♡</div>
 </div>
 
 <script>
-/* ═══════════════════════════════════════════════════
-   CONFIG
-═══════════════════════════════════════════════════ */
-const TOTAL_DURATION   = 7000;   // мс — полная анимация (сверху вниз)
-const PARTICLE_COUNT   = 520;    // сколько частиц складывают сердце
-const TRAIL_ALPHA      = 0.18;   // прозрачность трейла
-const NAME_APPEAR_AT   = 4200;   // мс — когда появляется имя
-
-/* ═══════════════════════════════════════════════════
-   CANVAS SETUP
-═══════════════════════════════════════════════════ */
+/* ─── canvas ─── */
 const canvas = document.getElementById('c');
-const ctx    = canvas.getContext('2d');
+const ctx = canvas.getContext('2d');
 let W, H, CX, CY, SCALE;
 
 function resize() {
   W = canvas.width  = window.innerWidth;
   H = canvas.height = window.innerHeight;
-  CX = W / 2;
-  CY = H / 2;
-  SCALE = Math.min(W, H) * 0.042;
+  CX = W / 2; CY = H / 2;
+  SCALE = Math.min(W, H) * 0.038;
 }
 resize();
 window.addEventListener('resize', resize);
 
-/* ═══════════════════════════════════════════════════
-   HEART MATH
-   Параметрическое уравнение: x = 16sin³t, y = 13cos−5cos2−2cos3−cos4
-   y инвертирован, чтобы «верх» был настоящим верхом сердца
-═══════════════════════════════════════════════════ */
+/* ─── heart math ─── */
 function heartXY(t) {
-  const x =  16 * Math.pow(Math.sin(t), 3);
-  const y = -(13*Math.cos(t) - 5*Math.cos(2*t) - 2*Math.cos(3*t) - Math.cos(4*t));
-  return { x, y };
+  return {
+    x:  16 * Math.pow(Math.sin(t), 3),
+    y: -(13*Math.cos(t) - 5*Math.cos(2*t) - 2*Math.cos(3*t) - Math.cos(4*t))
+  };
 }
 
-/* Сортируем точки контура по их y-значению (сверху вниз) */
-function buildHeartPoints(n) {
-  const pts = [];
-  for (let i = 0; i < n; i++) {
-    const t = (i / n) * Math.PI * 2;
-    const { x, y } = heartXY(t);
-    pts.push({ t, x, y,
-      wx: CX + x * SCALE,
-      wy: CY + y * SCALE
-    });
-  }
-  // сортируем по y (верх → низ)
-  pts.sort((a, b) => a.y - b.y);
-  return pts;
-}
+/* ─── words that will become particles ─── */
+const WORDS = "You are the best girl in this world".split(" ");
 
-/* ═══════════════════════════════════════════════════
-   PARTICLE
-═══════════════════════════════════════════════════ */
+/* ─── off-screen canvas to measure text ─── */
+const offCtx = document.createElement('canvas').getContext('2d');
+
+/* ─── Particle ─── */
+const TOTAL = 380;
+const NAME_AT = 4800; // ms
+
 class Particle {
-  constructor(idx, total) {
-    this.idx   = idx;
-    this.total = total;
+  constructor(idx) {
+    this.idx = idx;
 
-    // Цель — точка на контуре сердца (пересчитывается в resize)
-    this.setTarget();
+    // which word this particle displays
+    this.word = WORDS[idx % WORDS.length];
 
-    // Стартовая позиция — прямо над экраном, равномерно по X
-    const spread = W * 0.6;
-    this.startX = CX - spread/2 + (idx / total) * spread + (Math.random() - 0.5) * 80;
-    this.startY = -60 - Math.random() * 200;
+    // font size: vary slightly for depth
+    this.fontSize = 9 + Math.random() * 7;
 
-    // Размер и цвет
-    this.baseSize = 2.5 + Math.random() * 3.5;
-    const hue = 330 + (Math.random() - 0.5) * 40;
-    const lit = 58 + Math.random() * 22;
-    this.color     = `hsl(${hue},90%,${lit}%)`;
-    this.glowColor = `hsl(${hue},100%,${lit+10}%)`;
+    // position on heart contour
+    const t = (idx / TOTAL) * Math.PI * 2;
+    const h = heartXY(t);
+    this.tx = CX + h.x * SCALE;
+    this.ty = CY + h.y * SCALE;
 
-    // Временно́й оффсет: верхние точки летят раньше, нижние — позже
-    // idx уже отсортирован по y, значит idx=0 → самый верх
-    this.timeOffset = (idx / total) * (TOTAL_DURATION * 0.72);
+    // start: random position scattered above screen
+    this.sx = CX + (Math.random() - 0.5) * W * 0.9;
+    this.sy = -40 - Math.random() * 300;
 
-    // Личная продолжительность полёта: 1.4–2.2 с
-    this.flyDuration = 1400 + Math.random() * 800;
-
-    this.px = this.startX;
-    this.py = this.startY;
+    this.x = this.sx;
+    this.y = this.sy;
     this.alpha = 0;
-    this.arrived = false;
-    this.arrivalTime = null;
 
-    // Дыхание после прилёта
+    // stagger: earlier index → arrives sooner (top of heart first)
+    // sort indices by their target Y so top arrives first
+    this.delay = 0; // set after sort
+    this.flyDur = 1600 + Math.random() * 900;
+
+    this.arrived = false;
     this.breathPhase = Math.random() * Math.PI * 2;
+
+    // red shades
+    const r = 200 + Math.floor(Math.random() * 55);
+    const g = Math.floor(Math.random() * 40);
+    this.color = `rgb(${r},${g},0)`;
+    this.glow  = `rgba(255,0,0,0.7)`;
   }
 
-  setTarget() {
-    // target пересчитывается при resize (масштаб изменился)
-    const t = (this.idx / this.total) * Math.PI * 2;
-    const { x, y } = heartXY(t);
-    this.tx = CX + x * SCALE;
-    this.ty = CY + y * SCALE;
+  updateTarget() {
+    const t = (this.idx / TOTAL) * Math.PI * 2;
+    const h = heartXY(t);
+    this.tx = CX + h.x * SCALE;
+    this.ty = CY + h.y * SCALE;
   }
 
   update(now) {
-    const local = now - this.timeOffset;
-
-    if (local < 0) {
-      this.alpha = 0;
-      this.px = this.startX;
-      this.py = this.startY;
-      return;
-    }
+    const local = now - this.delay;
+    if (local < 0) { this.alpha = 0; return; }
 
     if (!this.arrived) {
-      const p = Math.min(local / this.flyDuration, 1);
+      const p = Math.min(local / this.flyDur, 1);
+      // ease out cubic
+      const e = 1 - Math.pow(1 - p, 3);
 
-      // Кривая: медленный старт → ускорение → плавное торможение
-      const ease = p < 0.5
-        ? 4 * p * p * p
-        : 1 - Math.pow(-2 * p + 2, 3) / 2;
-
-      // Лёгкий дугообразный путь — частица немного отклоняется в сторону
-      const arc = Math.sin(p * Math.PI) * (this.idx % 2 === 0 ? 40 : -40);
-
-      this.px = this.startX + (this.tx - this.startX) * ease + arc * (1 - ease);
-      this.py = this.startY + (this.ty - this.startY) * ease;
-
-      // Альфа: появляется в начале, не гаснет
-      this.alpha = Math.min(p * 5, 1) * 0.92;
+      // gentle arc
+      const arc = Math.sin(p * Math.PI) * ((this.idx % 2 === 0) ? 55 : -55);
+      this.x = this.sx + (this.tx - this.sx) * e + arc * (1 - e);
+      this.y = this.sy + (this.ty - this.sy) * e;
+      this.alpha = Math.min(p * 4, 1);
 
       if (p >= 1) {
         this.arrived = true;
-        this.arrivalTime = now;
-        this.px = this.tx;
-        this.py = this.ty;
+        this.x = this.tx; this.y = this.ty;
       }
     } else {
-      // Пульсация на месте
-      this.breathPhase += 0.04;
-      const pulse = 0.85 + 0.15 * Math.sin(this.breathPhase);
-      this.currentSize = this.baseSize * pulse;
-      this.alpha = 0.75 + 0.2 * Math.sin(this.breathPhase + 1);
+      this.breathPhase += 0.035;
+      this.alpha = 0.78 + 0.22 * Math.sin(this.breathPhase);
     }
   }
 
   draw() {
-    if (this.alpha <= 0.01) return;
-    const size = this.currentSize ?? this.baseSize;
-
+    if (this.alpha < 0.01) return;
     ctx.save();
     ctx.globalAlpha = this.alpha;
-
-    // Свечение
-    ctx.shadowColor = this.glowColor;
-    ctx.shadowBlur  = 12;
-
-    // Маленькое сердечко-частица
+    ctx.font = `bold ${this.fontSize}px Arial, sans-serif`;
     ctx.fillStyle = this.color;
-    ctx.translate(this.px, this.py);
-    ctx.beginPath();
-    const s = size;
-    ctx.moveTo(0,  s * 0.35);
-    ctx.bezierCurveTo(-s*1.1, -s*0.55, -s*2.0,  s*0.45, 0,  s*1.6);
-    ctx.bezierCurveTo( s*2.0,  s*0.45,  s*1.1, -s*0.55, 0,  s*0.35);
-    ctx.closePath();
-    ctx.fill();
-
+    ctx.shadowColor = this.glow;
+    ctx.shadowBlur  = 8;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(this.word, this.x, this.y);
     ctx.restore();
   }
 }
 
-/* ═══════════════════════════════════════════════════
-   AMBIENT FLOATERS — лёгкие сердечки на фоне
-═══════════════════════════════════════════════════ */
+/* ─── build particles, sort by target Y (top→bottom) ─── */
+const particles = Array.from({ length: TOTAL }, (_, i) => new Particle(i));
+
+// sort by ty so top of heart gets delay=0, bottom gets max delay
+const sorted = [...particles].sort((a, b) => a.ty - b.ty);
+const MAX_STAGGER = 4200; // ms — top to bottom spread
+sorted.forEach((p, rank) => {
+  p.delay = (rank / TOTAL) * MAX_STAGGER + Math.random() * 120;
+});
+
+/* ─── ambient floaters ─── */
 class Floater {
   constructor(randomY) {
     this.reset(randomY);
   }
   reset(randomY) {
-    this.x     = Math.random() * W;
-    this.y     = randomY ? Math.random() * H : H + 30;
-    this.size  = 3 + Math.random() * 10;
-    this.vy    = 0.3 + Math.random() * 0.7;
+    this.x  = Math.random() * W;
+    this.y  = randomY ? Math.random() * H : H + 20;
+    this.word = WORDS[Math.floor(Math.random() * WORDS.length)];
+    this.fs   = 7 + Math.random() * 8;
+    this.vy   = 0.25 + Math.random() * 0.5;
     this.phase = Math.random() * Math.PI * 2;
-    this.alpha = 0.06 + Math.random() * 0.18;
-    const hue  = 320 + Math.random() * 60;
-    this.color = `hsl(${hue},85%,65%)`;
+    this.alpha = 0.06 + Math.random() * 0.12;
+    const r = 180 + Math.floor(Math.random() * 75);
+    this.color = `rgb(${r},0,0)`;
   }
   update() {
     this.y -= this.vy;
-    this.phase += 0.025;
-    this.x += Math.sin(this.phase) * 0.5;
-    if (this.y < -30) this.reset(false);
+    this.phase += 0.02;
+    this.x += Math.sin(this.phase) * 0.4;
+    if (this.y < -20) this.reset(false);
   }
   draw() {
     ctx.save();
     ctx.globalAlpha = this.alpha;
-    ctx.fillStyle   = this.color;
-    ctx.shadowColor = this.color;
-    ctx.shadowBlur  = 6;
-    ctx.translate(this.x, this.y);
-    const s = this.size;
-    ctx.beginPath();
-    ctx.moveTo(0,  s * 0.35);
-    ctx.bezierCurveTo(-s*1.1, -s*0.55, -s*2.0,  s*0.45, 0,  s*1.6);
-    ctx.bezierCurveTo( s*2.0,  s*0.45,  s*1.1, -s*0.55, 0,  s*0.35);
-    ctx.closePath();
-    ctx.fill();
+    ctx.font = `bold ${this.fs}px Arial, sans-serif`;
+    ctx.fillStyle = this.color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(this.word, this.x, this.y);
     ctx.restore();
   }
 }
 
-/* ═══════════════════════════════════════════════════
-   INIT
-═══════════════════════════════════════════════════ */
-const heartPts  = buildHeartPoints(PARTICLE_COUNT);
-const particles = heartPts.map((_, i) => new Particle(i, PARTICLE_COUNT));
-const floaters  = Array.from({ length: 28 }, () => new Floater(true));
+const floaters = Array.from({ length: 30 }, () => new Floater(true));
 
+/* ─── loop ─── */
 let startTime = null;
 let nameShown = false;
 
@@ -300,18 +229,17 @@ function loop(ts) {
   if (!startTime) startTime = ts;
   const now = ts - startTime;
 
-  // Фон с трейлом
-  ctx.fillStyle = `rgba(8, 0, 15, ${TRAIL_ALPHA})`;
+  // trail
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
   ctx.fillRect(0, 0, W, H);
 
   floaters.forEach(f => { f.update(); f.draw(); });
   particles.forEach(p => { p.update(now); p.draw(); });
 
-  // Показываем имя
-  if (!nameShown && now >= NAME_APPEAR_AT) {
+  if (!nameShown && now >= NAME_AT) {
     nameShown = true;
-    document.getElementById('name').classList.add('visible');
-    document.getElementById('tagline').classList.add('visible');
+    document.getElementById('name').classList.add('show');
+    document.getElementById('tag').classList.add('show');
   }
 
   requestAnimationFrame(loop);
