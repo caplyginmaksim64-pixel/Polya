@@ -1,250 +1,168 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Поля 💕</title>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,700&display=swap" rel="stylesheet"/>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>♡</title>
   <style>
-    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
-    canvas { position: fixed; inset: 0; width: 100%; height: 100%; }
-    .center {
-      position: fixed; inset: 0;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      pointer-events: none; z-index: 10;
-    }
-    .name {
-      font-family: 'Playfair Display', serif;
-      font-style: italic; font-weight: 700;
-      font-size: clamp(64px, 16vw, 148px);
-      letter-spacing: 0.14em;
-      color: #fff;
-      opacity: 0;
-      transform: scale(0.88);
-      transition: opacity 1.6s ease, transform 1.6s ease;
-      text-shadow:
-        0 0 20px rgba(255,0,0,0.9),
-        0 0 50px rgba(255,0,0,0.6),
-        0 0 110px rgba(200,0,0,0.35);
-    }
-    .name.show { opacity: 1; transform: scale(1); }
-    .tagline {
-      margin-top: 8px;
-      font-family: 'Playfair Display', serif;
-      font-style: italic;
-      font-size: clamp(13px, 3vw, 22px);
-      letter-spacing: 0.3em;
-      color: rgba(255,120,120,0.85);
-      opacity: 0;
-      transition: opacity 1.8s ease 0.5s;
-      text-shadow: 0 0 18px rgba(255,0,0,0.5);
-    }
-    .tagline.show { opacity: 1; }
+    canvas { display: block; }
   </style>
 </head>
 <body>
-
 <canvas id="c"></canvas>
-
-<div class="center">
-  <div class="name" id="name">Поля</div>
-  <div class="tagline" id="tag">with love ♡</div>
-</div>
-
 <script>
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
-let W, H, CX, CY, S;
+
+let W, H, CX, CY;
 
 function resize() {
   W = canvas.width  = window.innerWidth;
   H = canvas.height = window.innerHeight;
-  CX = W / 2; CY = H / 2;
-  S = Math.min(W, H) * 0.038;
+  CX = W / 2;
+  CY = H / 2;
 }
 resize();
 window.addEventListener('resize', resize);
 
-/* ── heart point ── */
-function hp(t) {
-  return {
-    x:  16 * Math.pow(Math.sin(t), 3),
-    y: -(13*Math.cos(t) - 5*Math.cos(2*t) - 2*Math.cos(3*t) - Math.cos(4*t))
-  };
+/* ── heart parametric ── */
+function heartPoint(t) {
+  const x =  16 * Math.pow(Math.sin(t), 3);
+  const y = -(13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t));
+  return { x, y };
 }
 
-/* ── plasma particle (fibrous red glow like screenshot) ── */
-const WORDS  = "You are the best girl in this world".split(" ");
-const N      = 420;
-const NAME_T = 5200;
+/* ── build all heart target points ── */
+const COUNT = 600;
+const scale = () => Math.min(W, H) * 0.036;
 
-class P {
-  constructor(i) {
-    this.i = i;
-    const t = (i / N) * Math.PI * 2;
-    const h = hp(t);
-    this.tx = CX + h.x * S;
-    this.ty = CY + h.y * S;
+function buildTargets() {
+  const pts = [];
+  for (let i = 0; i < COUNT; i++) {
+    const t = (i / COUNT) * Math.PI * 2;
+    const h = heartPoint(t);
+    pts.push({
+      x: CX + h.x * scale(),
+      y: CY + h.y * scale()
+    });
+  }
+  return pts;
+}
 
-    /* start scattered at top */
-    this.sx = CX + (Math.random() - 0.5) * W * 0.85;
-    this.sy = -50 - Math.random() * 250;
-    this.x  = this.sx;
-    this.y  = this.sy;
+/* ── particle ── */
+class Particle {
+  constructor(idx, target) {
+    this.idx = idx;
+    this.target = target;
 
-    this.word = WORDS[i % WORDS.length];
-    this.fs   = 8 + Math.random() * 7;
-    this.alpha = 0;
-    this.arrived = false;
-    this.bp = Math.random() * Math.PI * 2;
+    /* random start anywhere on screen */
+    this.x = Math.random() * W;
+    this.y = Math.random() * H;
 
-    /* trace — fibrous tail */
-    this.trace = [];
-    this.traceLen = 18 + Math.floor(Math.random() * 20);
+    this.vx = 0;
+    this.vy = 0;
 
-    /* red palette */
+    /* speed factor — each particle slightly different */
+    this.speed = 0.2 + Math.random() * 5;
+
+    /* direction multiplier: attract toward opposite side for crossing lines */
+    this.D = 2 * (idx % 2) - 1;
+
+    /* force strength */
+    this.force = 0.2 * Math.random() + 0.7;
+
+    /* colour: red-orange range */
     const r = 180 + Math.floor(Math.random() * 75);
-    const g = Math.floor(Math.random() * 30);
-    this.col  = `rgb(${r},${g},0)`;
-    this.glow = `rgba(255,30,30,0.55)`;
+    const g = Math.floor(Math.random() * 40);
+    this.r = r; this.g = g;
+    this.color = `rgb(${r},${g},0)`;
 
-    this.delay   = 0;
-    this.flyDur  = 1500 + Math.random() * 1000;
+    /* trace history */
+    this.traceLen = 12 + Math.floor(Math.random() * 20);
+    this.trace = Array.from({ length: this.traceLen }, () => ({ x: this.x, y: this.y }));
   }
 
-  update(now) {
-    const loc = now - this.delay;
-    if (loc < 0) { this.alpha = 0; return; }
+  update() {
+    const tx = this.target.x;
+    const ty = this.target.y;
 
-    const px = this.x, py = this.y;
+    const dx = tx - this.x;
+    const dy = ty - this.y;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 0.001;
 
-    if (!this.arrived) {
-      const p = Math.min(loc / this.flyDur, 1);
-      const e = 1 - Math.pow(1 - p, 3);
-      const arc = Math.sin(p * Math.PI) * ((this.i % 2 === 0) ? 60 : -60);
-      this.x = this.sx + (this.tx - this.sx) * e + arc * (1 - e);
-      this.y = this.sy + (this.ty - this.sy) * e;
-      this.alpha = Math.min(p * 4, 0.9);
+    /* attraction with a bit of overshoot / oscillation */
+    const pull = this.force / dist * this.speed;
+    this.vx += dx * pull;
+    this.vy += dy * pull;
 
-      /* store trace */
-      this.trace.push({ x: px, y: py });
-      if (this.trace.length > this.traceLen) this.trace.shift();
+    /* damping */
+    this.vx *= 0.92;
+    this.vy *= 0.92;
 
-      if (p >= 1) {
-        this.arrived = true;
-        this.x = this.tx; this.y = this.ty;
-        this.trace = [];
-      }
-    } else {
-      this.bp += 0.03;
-      this.alpha = 0.72 + 0.25 * Math.sin(this.bp);
-    }
+    /* push trace */
+    this.trace.push({ x: this.x, y: this.y });
+    if (this.trace.length > this.traceLen) this.trace.shift();
+
+    this.x += this.vx;
+    this.y += this.vy;
   }
 
   draw() {
-    if (this.alpha < 0.01) return;
+    if (this.trace.length < 2) return;
 
-    /* draw fibrous trace */
-    if (this.trace.length > 1) {
-      for (let k = 1; k < this.trace.length; k++) {
-        const a = (k / this.trace.length) * this.alpha * 0.45;
-        ctx.save();
-        ctx.globalAlpha = a;
-        ctx.strokeStyle = this.col;
-        ctx.shadowColor = this.glow;
-        ctx.shadowBlur  = 6;
-        ctx.lineWidth   = 0.7;
-        ctx.beginPath();
-        ctx.moveTo(this.trace[k-1].x, this.trace[k-1].y);
-        ctx.lineTo(this.trace[k].x,   this.trace[k].y);
-        ctx.stroke();
-        ctx.restore();
-      }
+    const len = this.trace.length;
+    for (let k = 1; k < len; k++) {
+      const a = (k / len) * 0.55;
+      ctx.beginPath();
+      ctx.moveTo(this.trace[k-1].x, this.trace[k-1].y);
+      ctx.lineTo(this.trace[k].x,   this.trace[k].y);
+      ctx.strokeStyle = `rgba(${this.r},${this.g},0,${a})`;
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
     }
 
-    /* draw word */
-    ctx.save();
-    ctx.globalAlpha   = this.alpha;
-    ctx.font          = `bold ${this.fs}px Arial, sans-serif`;
-    ctx.fillStyle     = this.col;
-    ctx.shadowColor   = this.glow;
-    ctx.shadowBlur    = 10;
-    ctx.textAlign     = 'center';
-    ctx.textBaseline  = 'middle';
-    ctx.fillText(this.word, this.x, this.y);
-    ctx.restore();
+    /* glow dot at head */
+    const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, 3);
+    grad.addColorStop(0, `rgba(255,80,0,0.9)`);
+    grad.addColorStop(1, `rgba(255,0,0,0)`);
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, 3, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
   }
 }
 
-/* ── build & sort top→bottom ── */
-const parts = Array.from({ length: N }, (_, i) => new P(i));
-const sorted = [...parts].sort((a, b) => a.ty - b.ty);
-sorted.forEach((p, rank) => {
-  p.delay = (rank / N) * 4400 + Math.random() * 100;
+/* ── init ── */
+let targets = buildTargets();
+let particles = targets.map((t, i) => new Particle(i, t));
+
+window.addEventListener('resize', () => {
+  targets = buildTargets();
+  particles.forEach((p, i) => { p.target = targets[i]; });
 });
 
-/* ── ambient word floaters ── */
-class F {
-  constructor(ry) {
-    this.reset(ry);
-  }
-  reset(ry) {
-    this.x  = Math.random() * W;
-    this.y  = ry ? Math.random() * H : H + 16;
-    this.w  = WORDS[Math.floor(Math.random() * WORDS.length)];
-    this.fs = 7 + Math.random() * 7;
-    this.vy = 0.2 + Math.random() * 0.45;
-    this.ph = Math.random() * Math.PI * 2;
-    this.alpha = 0.05 + Math.random() * 0.1;
-    const r = 160 + Math.floor(Math.random() * 95);
-    this.col = `rgb(${r},0,0)`;
-  }
-  update() {
-    this.y  -= this.vy;
-    this.ph += 0.018;
-    this.x  += Math.sin(this.ph) * 0.35;
-    if (this.y < -16) this.reset(false);
-  }
-  draw() {
-    ctx.save();
-    ctx.globalAlpha   = this.alpha;
-    ctx.font          = `bold ${this.fs}px Arial, sans-serif`;
-    ctx.fillStyle     = this.col;
-    ctx.textAlign     = 'center';
-    ctx.textBaseline  = 'middle';
-    ctx.fillText(this.w, this.x, this.y);
-    ctx.restore();
-  }
-}
-
-const floaters = Array.from({ length: 28 }, () => new F(true));
-
-/* ── render loop ── */
-let t0 = null, nameShown = false;
-
-function loop(ts) {
-  if (!t0) t0 = ts;
-  const now = ts - t0;
-
-  /* slow fade trail — keeps fibrous glow */
-  ctx.fillStyle = 'rgba(0,0,0,0.14)';
+/* ── loop ── */
+function loop() {
+  /* slow fade — creates the fibrous glow trails */
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
   ctx.fillRect(0, 0, W, H);
 
-  floaters.forEach(f => { f.update(); f.draw(); });
-  parts.forEach(p    => { p.update(now); p.draw(); });
+  ctx.shadowBlur  = 6;
+  ctx.shadowColor = 'rgba(255, 0, 0, 0.4)';
 
-  if (!nameShown && now >= NAME_T) {
-    nameShown = true;
-    document.getElementById('name').classList.add('show');
-    document.getElementById('tag').classList.add('show');
-  }
+  particles.forEach(p => {
+    p.update();
+    p.draw();
+  });
+
+  ctx.shadowBlur = 0;
 
   requestAnimationFrame(loop);
 }
 
-requestAnimationFrame(loop);
+loop();
 </script>
 </body>
 </html>
