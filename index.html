@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Поля 💕</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #0a0010;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      font-family: 'Georgia', serif;
+    }
+
+    /* Центральный текст */
+    .center-text {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 100;
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .name {
+      font-size: clamp(60px, 15vw, 130px);
+      font-weight: bold;
+      color: #fff;
+      text-shadow:
+        0 0 20px #ff4d8d,
+        0 0 40px #ff4d8d,
+        0 0 80px #ff1a6b,
+        0 0 120px #ff0055;
+      letter-spacing: 8px;
+      animation: pulse-name 2s ease-in-out infinite;
+    }
+
+    .subtitle {
+      font-size: clamp(16px, 4vw, 28px);
+      color: #ffb3cc;
+      margin-top: 12px;
+      text-shadow: 0 0 15px #ff4d8d;
+      animation: fade-sub 3s ease-in-out infinite;
+      letter-spacing: 4px;
+    }
+
+    @keyframes pulse-name {
+      0%, 100% { transform: scale(1); text-shadow: 0 0 20px #ff4d8d, 0 0 40px #ff4d8d, 0 0 80px #ff1a6b, 0 0 120px #ff0055; }
+      50% { transform: scale(1.06); text-shadow: 0 0 30px #ff4d8d, 0 0 60px #ff69b4, 0 0 100px #ff1a6b, 0 0 160px #ff0055; }
+    }
+
+    @keyframes fade-sub {
+      0%, 100% { opacity: 0.7; }
+      50% { opacity: 1; }
+    }
+
+    /* Холст для частиц */
+    canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    /* Большое фоновое сердце */
+    .bg-heart {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 2;
+      width: min(80vw, 80vh);
+      height: min(80vw, 80vh);
+      opacity: 0.06;
+      animation: bg-beat 1.8s ease-in-out infinite;
+    }
+
+    .bg-heart::before,
+    .bg-heart::after {
+      content: '';
+      position: absolute;
+      width: 50%;
+      height: 80%;
+      background: #ff4d8d;
+      border-radius: 50% 50% 0 0;
+    }
+
+    .bg-heart::before {
+      left: 50%;
+      transform: rotate(-45deg);
+      transform-origin: 0 100%;
+    }
+
+    .bg-heart::after {
+      left: 0;
+      transform: rotate(45deg);
+      transform-origin: 100% 100%;
+    }
+
+    @keyframes bg-beat {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.06; }
+      50% { transform: translate(-50%, -50%) scale(1.08); opacity: 0.1; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="bg-heart"></div>
+
+  <canvas id="canvas"></canvas>
+
+  <div class="center-text">
+    <div class="name">Поля</div>
+    <div class="subtitle">💕 с любовью 💕</div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    window.addEventListener('resize', () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    });
+
+    // Функция рисования сердца по параметрическим уравнениям
+    function heartPoint(t) {
+      const x = 16 * Math.pow(Math.sin(t), 3);
+      const y = -(13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t));
+      return { x, y };
+    }
+
+    class Particle {
+      constructor() {
+        this.reset();
+      }
+
+      reset() {
+        // Стартуем из центра экрана
+        this.x = canvas.width / 2;
+        this.y = canvas.height / 2;
+
+        // Конечная точка — на контуре сердца
+        const t = Math.random() * Math.PI * 2;
+        const scale = Math.min(canvas.width, canvas.height) * 0.038;
+        const target = heartPoint(t);
+        this.targetX = canvas.width / 2 + target.x * scale;
+        this.targetY = canvas.height / 2 + target.y * scale;
+
+        // Параметры движения
+        this.progress = 0;
+        this.speed = 0.004 + Math.random() * 0.008;
+
+        // Внешний вид
+        this.size = 2 + Math.random() * 5;
+        this.alpha = 0;
+        this.maxAlpha = 0.6 + Math.random() * 0.4;
+
+        // Цвет — оттенки розового/красного
+        const hue = 330 + Math.random() * 40 - 20;
+        const sat = 70 + Math.random() * 30;
+        const light = 55 + Math.random() * 25;
+        this.color = `hsl(${hue}, ${sat}%, ${light}%)`;
+
+        // Случайное «дыхание» после достижения контура
+        this.phase = Math.random() * Math.PI * 2;
+        this.wobble = (Math.random() - 0.5) * 20;
+      }
+
+      update() {
+        if (this.progress < 1) {
+          this.progress += this.speed;
+          if (this.progress >= 1) this.progress = 1;
+        }
+
+        // Плавная интерполяция (ease in-out)
+        const ease = this.progress < 0.5
+          ? 2 * this.progress * this.progress
+          : -1 + (4 - 2 * this.progress) * this.progress;
+
+        this.x = canvas.width / 2 + (this.targetX - canvas.width / 2) * ease;
+        this.y = canvas.height / 2 + (this.targetY - canvas.height / 2) * ease;
+
+        // Лёгкое мерцание после прилёта
+        if (this.progress === 1) {
+          this.phase += 0.05;
+          this.size = (2 + Math.random() * 5) * (0.85 + 0.15 * Math.sin(this.phase));
+        }
+
+        // Альфа
+        if (this.progress < 0.2) {
+          this.alpha = (this.progress / 0.2) * this.maxAlpha;
+        } else if (this.progress > 0.85) {
+          this.alpha = this.maxAlpha * (1 - (this.progress - 0.85) / 0.15);
+        } else {
+          this.alpha = this.maxAlpha;
+        }
+
+        // Перезапуск
+        if (this.progress === 1 && this.alpha <= 0.01) {
+          this.reset();
+        }
+      }
+
+      draw() {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, this.alpha);
+        ctx.fillStyle = this.color;
+        ctx.shadowColor = this.color;
+        ctx.shadowBlur = 10;
+
+        // Маленькое сердечко вместо круга
+        const s = this.size;
+        ctx.translate(this.x, this.y);
+        ctx.beginPath();
+        ctx.moveTo(0, s * 0.3);
+        ctx.bezierCurveTo(-s * 1.1, -s * 0.6, -s * 2, s * 0.4, 0, s * 1.5);
+        ctx.bezierCurveTo(s * 2, s * 0.4, s * 1.1, -s * 0.6, 0, s * 0.3);
+        ctx.fill();
+
+        ctx.restore();
+      }
+    }
+
+    // Летающие сердечки-спутники по всему экрану
+    class FloatHeart {
+      constructor() {
+        this.reset();
+      }
+
+      reset() {
+        this.x = Math.random() * canvas.width;
+        this.y = canvas.height + 40;
+        this.size = 6 + Math.random() * 18;
+        this.speedY = 0.5 + Math.random() * 1.5;
+        this.speedX = (Math.random() - 0.5) * 0.8;
+        this.alpha = 0.15 + Math.random() * 0.45;
+        this.phase = Math.random() * Math.PI * 2;
+        const hue = 320 + Math.random() * 60;
+        this.color = `hsl(${hue}, 90%, 65%)`;
+      }
+
+      update() {
+        this.y -= this.speedY;
+        this.phase += 0.03;
+        this.x += Math.sin(this.phase) * 0.7 + this.speedX;
+
+        if (this.y < -40) this.reset();
+      }
+
+      draw() {
+        ctx.save();
+        ctx.globalAlpha = this.alpha;
+        ctx.fillStyle = this.color;
+        ctx.shadowColor = this.color;
+        ctx.shadowBlur = 8;
+        ctx.translate(this.x, this.y);
+
+        const s = this.size;
+        ctx.beginPath();
+        ctx.moveTo(0, s * 0.3);
+        ctx.bezierCurveTo(-s * 1.1, -s * 0.6, -s * 2, s * 0.4, 0, s * 1.5);
+        ctx.bezierCurveTo(s * 2, s * 0.4, s * 1.1, -s * 0.6, 0, s * 0.3);
+        ctx.fill();
+
+        ctx.restore();
+      }
+    }
+
+    // Создаём частицы
+    const PARTICLE_COUNT = 300;
+    const FLOAT_COUNT = 25;
+
+    const particles = Array.from({ length: PARTICLE_COUNT }, () => {
+      const p = new Particle();
+      p.progress = Math.random(); // рандомный старт
+      return p;
+    });
+
+    const floaters = Array.from({ length: FLOAT_COUNT }, () => {
+      const f = new FloatHeart();
+      f.y = Math.random() * canvas.height; // рандомная позиция на старте
+      return f;
+    });
+
+    function animate() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Тёмный фон с лёгким затуханием для трейлов
+      ctx.fillStyle = 'rgba(10, 0, 16, 0.25)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      floaters.forEach(f => { f.update(); f.draw(); });
+      particles.forEach(p => { p.update(); p.draw(); });
+
+      requestAnimationFrame(animate);
+    }
+
+    animate();
+  </script>
+</body>
+</html>
