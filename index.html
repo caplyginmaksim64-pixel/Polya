@@ -27,15 +27,13 @@ function resize() {
 resize();
 window.addEventListener('resize', resize);
 
-/* ── heart parametric ── */
 function heartPoint(t) {
   const x =  16 * Math.pow(Math.sin(t), 3);
   const y = -(13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t));
   return { x, y };
 }
 
-/* ── build all heart target points ── */
-const COUNT = 600;
+const COUNT = 180;
 const scale = () => Math.min(W, H) * 0.036;
 
 function buildTargets() {
@@ -51,67 +49,40 @@ function buildTargets() {
   return pts;
 }
 
-/* ── particle ── */
 class Particle {
   constructor(idx, target) {
     this.idx = idx;
     this.target = target;
-
-    /* random start anywhere on screen */
     this.x = Math.random() * W;
     this.y = Math.random() * H;
-
     this.vx = 0;
     this.vy = 0;
-
-    /* speed factor — each particle slightly different */
     this.speed = 0.2 + Math.random() * 5;
-
-    /* direction multiplier: attract toward opposite side for crossing lines */
-    this.D = 2 * (idx % 2) - 1;
-
-    /* force strength */
     this.force = 0.2 * Math.random() + 0.7;
-
-    /* colour: red-orange range */
     const r = 180 + Math.floor(Math.random() * 75);
     const g = Math.floor(Math.random() * 40);
     this.r = r; this.g = g;
-    this.color = `rgb(${r},${g},0)`;
-
-    /* trace history */
-    this.traceLen = 12 + Math.floor(Math.random() * 20);
+    this.traceLen = 8 + Math.floor(Math.random() * 10);
     this.trace = Array.from({ length: this.traceLen }, () => ({ x: this.x, y: this.y }));
   }
 
   update() {
-    const tx = this.target.x;
-    const ty = this.target.y;
-
-    const dx = tx - this.x;
-    const dy = ty - this.y;
+    const dx = this.target.x - this.x;
+    const dy = this.target.y - this.y;
     const dist = Math.sqrt(dx * dx + dy * dy) || 0.001;
-
-    /* attraction with a bit of overshoot / oscillation */
     const pull = this.force / dist * this.speed;
     this.vx += dx * pull;
     this.vy += dy * pull;
-
-    /* damping */
     this.vx *= 0.92;
     this.vy *= 0.92;
-
-    /* push trace */
     this.trace.push({ x: this.x, y: this.y });
     if (this.trace.length > this.traceLen) this.trace.shift();
-
     this.x += this.vx;
     this.y += this.vy;
   }
 
   draw() {
     if (this.trace.length < 2) return;
-
     const len = this.trace.length;
     for (let k = 1; k < len; k++) {
       const a = (k / len) * 0.55;
@@ -122,8 +93,6 @@ class Particle {
       ctx.lineWidth = 0.8;
       ctx.stroke();
     }
-
-    /* glow dot at head */
     const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, 3);
     grad.addColorStop(0, `rgba(255,80,0,0.9)`);
     grad.addColorStop(1, `rgba(255,0,0,0)`);
@@ -134,7 +103,6 @@ class Particle {
   }
 }
 
-/* ── init ── */
 let targets = buildTargets();
 let particles = targets.map((t, i) => new Particle(i, t));
 
@@ -143,22 +111,13 @@ window.addEventListener('resize', () => {
   particles.forEach((p, i) => { p.target = targets[i]; });
 });
 
-/* ── loop ── */
 function loop() {
-  /* slow fade — creates the fibrous glow trails */
   ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
   ctx.fillRect(0, 0, W, H);
-
   ctx.shadowBlur  = 6;
   ctx.shadowColor = 'rgba(255, 0, 0, 0.4)';
-
-  particles.forEach(p => {
-    p.update();
-    p.draw();
-  });
-
+  particles.forEach(p => { p.update(); p.draw(); });
   ctx.shadowBlur = 0;
-
   requestAnimationFrame(loop);
 }
 
