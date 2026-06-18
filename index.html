@@ -8,9 +8,7 @@
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
-
     canvas { position: fixed; inset: 0; width: 100%; height: 100%; }
-
     .center {
       position: fixed; inset: 0;
       display: flex; flex-direction: column;
@@ -32,14 +30,13 @@
         0 0 110px rgba(200,0,0,0.35);
     }
     .name.show { opacity: 1; transform: scale(1); }
-
     .tagline {
       margin-top: 8px;
       font-family: 'Playfair Display', serif;
       font-style: italic;
       font-size: clamp(13px, 3vw, 22px);
       letter-spacing: 0.3em;
-      color: rgba(255, 120, 120, 0.85);
+      color: rgba(255,120,120,0.85);
       opacity: 0;
       transition: opacity 1.8s ease 0.5s;
       text-shadow: 0 0 18px rgba(255,0,0,0.5);
@@ -52,191 +49,193 @@
 <canvas id="c"></canvas>
 
 <div class="center">
-  <div class="name"  id="name">Поля</div>
+  <div class="name" id="name">Поля</div>
   <div class="tagline" id="tag">with love ♡</div>
 </div>
 
 <script>
-/* ─── canvas ─── */
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
-let W, H, CX, CY, SCALE;
+let W, H, CX, CY, S;
 
 function resize() {
   W = canvas.width  = window.innerWidth;
   H = canvas.height = window.innerHeight;
   CX = W / 2; CY = H / 2;
-  SCALE = Math.min(W, H) * 0.038;
+  S = Math.min(W, H) * 0.038;
 }
 resize();
 window.addEventListener('resize', resize);
 
-/* ─── heart math ─── */
-function heartXY(t) {
+/* ── heart point ── */
+function hp(t) {
   return {
     x:  16 * Math.pow(Math.sin(t), 3),
     y: -(13*Math.cos(t) - 5*Math.cos(2*t) - 2*Math.cos(3*t) - Math.cos(4*t))
   };
 }
 
-/* ─── words that will become particles ─── */
-const WORDS = "You are the best girl in this world".split(" ");
+/* ── plasma particle (fibrous red glow like screenshot) ── */
+const WORDS  = "You are the best girl in this world".split(" ");
+const N      = 420;
+const NAME_T = 5200;
 
-/* ─── off-screen canvas to measure text ─── */
-const offCtx = document.createElement('canvas').getContext('2d');
+class P {
+  constructor(i) {
+    this.i = i;
+    const t = (i / N) * Math.PI * 2;
+    const h = hp(t);
+    this.tx = CX + h.x * S;
+    this.ty = CY + h.y * S;
 
-/* ─── Particle ─── */
-const TOTAL = 380;
-const NAME_AT = 4800; // ms
+    /* start scattered at top */
+    this.sx = CX + (Math.random() - 0.5) * W * 0.85;
+    this.sy = -50 - Math.random() * 250;
+    this.x  = this.sx;
+    this.y  = this.sy;
 
-class Particle {
-  constructor(idx) {
-    this.idx = idx;
-
-    // which word this particle displays
-    this.word = WORDS[idx % WORDS.length];
-
-    // font size: vary slightly for depth
-    this.fontSize = 9 + Math.random() * 7;
-
-    // position on heart contour
-    const t = (idx / TOTAL) * Math.PI * 2;
-    const h = heartXY(t);
-    this.tx = CX + h.x * SCALE;
-    this.ty = CY + h.y * SCALE;
-
-    // start: random position scattered above screen
-    this.sx = CX + (Math.random() - 0.5) * W * 0.9;
-    this.sy = -40 - Math.random() * 300;
-
-    this.x = this.sx;
-    this.y = this.sy;
+    this.word = WORDS[i % WORDS.length];
+    this.fs   = 8 + Math.random() * 7;
     this.alpha = 0;
-
-    // stagger: earlier index → arrives sooner (top of heart first)
-    // sort indices by their target Y so top arrives first
-    this.delay = 0; // set after sort
-    this.flyDur = 1600 + Math.random() * 900;
-
     this.arrived = false;
-    this.breathPhase = Math.random() * Math.PI * 2;
+    this.bp = Math.random() * Math.PI * 2;
 
-    // red shades
-    const r = 200 + Math.floor(Math.random() * 55);
-    const g = Math.floor(Math.random() * 40);
-    this.color = `rgb(${r},${g},0)`;
-    this.glow  = `rgba(255,0,0,0.7)`;
-  }
+    /* trace — fibrous tail */
+    this.trace = [];
+    this.traceLen = 18 + Math.floor(Math.random() * 20);
 
-  updateTarget() {
-    const t = (this.idx / TOTAL) * Math.PI * 2;
-    const h = heartXY(t);
-    this.tx = CX + h.x * SCALE;
-    this.ty = CY + h.y * SCALE;
+    /* red palette */
+    const r = 180 + Math.floor(Math.random() * 75);
+    const g = Math.floor(Math.random() * 30);
+    this.col  = `rgb(${r},${g},0)`;
+    this.glow = `rgba(255,30,30,0.55)`;
+
+    this.delay   = 0;
+    this.flyDur  = 1500 + Math.random() * 1000;
   }
 
   update(now) {
-    const local = now - this.delay;
-    if (local < 0) { this.alpha = 0; return; }
+    const loc = now - this.delay;
+    if (loc < 0) { this.alpha = 0; return; }
+
+    const px = this.x, py = this.y;
 
     if (!this.arrived) {
-      const p = Math.min(local / this.flyDur, 1);
-      // ease out cubic
+      const p = Math.min(loc / this.flyDur, 1);
       const e = 1 - Math.pow(1 - p, 3);
-
-      // gentle arc
-      const arc = Math.sin(p * Math.PI) * ((this.idx % 2 === 0) ? 55 : -55);
+      const arc = Math.sin(p * Math.PI) * ((this.i % 2 === 0) ? 60 : -60);
       this.x = this.sx + (this.tx - this.sx) * e + arc * (1 - e);
       this.y = this.sy + (this.ty - this.sy) * e;
-      this.alpha = Math.min(p * 4, 1);
+      this.alpha = Math.min(p * 4, 0.9);
+
+      /* store trace */
+      this.trace.push({ x: px, y: py });
+      if (this.trace.length > this.traceLen) this.trace.shift();
 
       if (p >= 1) {
         this.arrived = true;
         this.x = this.tx; this.y = this.ty;
+        this.trace = [];
       }
     } else {
-      this.breathPhase += 0.035;
-      this.alpha = 0.78 + 0.22 * Math.sin(this.breathPhase);
+      this.bp += 0.03;
+      this.alpha = 0.72 + 0.25 * Math.sin(this.bp);
     }
   }
 
   draw() {
     if (this.alpha < 0.01) return;
+
+    /* draw fibrous trace */
+    if (this.trace.length > 1) {
+      for (let k = 1; k < this.trace.length; k++) {
+        const a = (k / this.trace.length) * this.alpha * 0.45;
+        ctx.save();
+        ctx.globalAlpha = a;
+        ctx.strokeStyle = this.col;
+        ctx.shadowColor = this.glow;
+        ctx.shadowBlur  = 6;
+        ctx.lineWidth   = 0.7;
+        ctx.beginPath();
+        ctx.moveTo(this.trace[k-1].x, this.trace[k-1].y);
+        ctx.lineTo(this.trace[k].x,   this.trace[k].y);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    /* draw word */
     ctx.save();
-    ctx.globalAlpha = this.alpha;
-    ctx.font = `bold ${this.fontSize}px Arial, sans-serif`;
-    ctx.fillStyle = this.color;
-    ctx.shadowColor = this.glow;
-    ctx.shadowBlur  = 8;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+    ctx.globalAlpha   = this.alpha;
+    ctx.font          = `bold ${this.fs}px Arial, sans-serif`;
+    ctx.fillStyle     = this.col;
+    ctx.shadowColor   = this.glow;
+    ctx.shadowBlur    = 10;
+    ctx.textAlign     = 'center';
+    ctx.textBaseline  = 'middle';
     ctx.fillText(this.word, this.x, this.y);
     ctx.restore();
   }
 }
 
-/* ─── build particles, sort by target Y (top→bottom) ─── */
-const particles = Array.from({ length: TOTAL }, (_, i) => new Particle(i));
-
-// sort by ty so top of heart gets delay=0, bottom gets max delay
-const sorted = [...particles].sort((a, b) => a.ty - b.ty);
-const MAX_STAGGER = 4200; // ms — top to bottom spread
+/* ── build & sort top→bottom ── */
+const parts = Array.from({ length: N }, (_, i) => new P(i));
+const sorted = [...parts].sort((a, b) => a.ty - b.ty);
 sorted.forEach((p, rank) => {
-  p.delay = (rank / TOTAL) * MAX_STAGGER + Math.random() * 120;
+  p.delay = (rank / N) * 4400 + Math.random() * 100;
 });
 
-/* ─── ambient floaters ─── */
-class Floater {
-  constructor(randomY) {
-    this.reset(randomY);
+/* ── ambient word floaters ── */
+class F {
+  constructor(ry) {
+    this.reset(ry);
   }
-  reset(randomY) {
+  reset(ry) {
     this.x  = Math.random() * W;
-    this.y  = randomY ? Math.random() * H : H + 20;
-    this.word = WORDS[Math.floor(Math.random() * WORDS.length)];
-    this.fs   = 7 + Math.random() * 8;
-    this.vy   = 0.25 + Math.random() * 0.5;
-    this.phase = Math.random() * Math.PI * 2;
-    this.alpha = 0.06 + Math.random() * 0.12;
-    const r = 180 + Math.floor(Math.random() * 75);
-    this.color = `rgb(${r},0,0)`;
+    this.y  = ry ? Math.random() * H : H + 16;
+    this.w  = WORDS[Math.floor(Math.random() * WORDS.length)];
+    this.fs = 7 + Math.random() * 7;
+    this.vy = 0.2 + Math.random() * 0.45;
+    this.ph = Math.random() * Math.PI * 2;
+    this.alpha = 0.05 + Math.random() * 0.1;
+    const r = 160 + Math.floor(Math.random() * 95);
+    this.col = `rgb(${r},0,0)`;
   }
   update() {
-    this.y -= this.vy;
-    this.phase += 0.02;
-    this.x += Math.sin(this.phase) * 0.4;
-    if (this.y < -20) this.reset(false);
+    this.y  -= this.vy;
+    this.ph += 0.018;
+    this.x  += Math.sin(this.ph) * 0.35;
+    if (this.y < -16) this.reset(false);
   }
   draw() {
     ctx.save();
-    ctx.globalAlpha = this.alpha;
-    ctx.font = `bold ${this.fs}px Arial, sans-serif`;
-    ctx.fillStyle = this.color;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(this.word, this.x, this.y);
+    ctx.globalAlpha   = this.alpha;
+    ctx.font          = `bold ${this.fs}px Arial, sans-serif`;
+    ctx.fillStyle     = this.col;
+    ctx.textAlign     = 'center';
+    ctx.textBaseline  = 'middle';
+    ctx.fillText(this.w, this.x, this.y);
     ctx.restore();
   }
 }
 
-const floaters = Array.from({ length: 30 }, () => new Floater(true));
+const floaters = Array.from({ length: 28 }, () => new F(true));
 
-/* ─── loop ─── */
-let startTime = null;
-let nameShown = false;
+/* ── render loop ── */
+let t0 = null, nameShown = false;
 
 function loop(ts) {
-  if (!startTime) startTime = ts;
-  const now = ts - startTime;
+  if (!t0) t0 = ts;
+  const now = ts - t0;
 
-  // trail
-  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  /* slow fade trail — keeps fibrous glow */
+  ctx.fillStyle = 'rgba(0,0,0,0.14)';
   ctx.fillRect(0, 0, W, H);
 
   floaters.forEach(f => { f.update(); f.draw(); });
-  particles.forEach(p => { p.update(now); p.draw(); });
+  parts.forEach(p    => { p.update(now); p.draw(); });
 
-  if (!nameShown && now >= NAME_AT) {
+  if (!nameShown && now >= NAME_T) {
     nameShown = true;
     document.getElementById('name').classList.add('show');
     document.getElementById('tag').classList.add('show');
